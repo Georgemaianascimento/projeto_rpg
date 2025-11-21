@@ -9,6 +9,21 @@ const io = socketIo(server);
 const { Pool } = require('pg');
 const fs = require('fs');
 const multer = require('multer');
+let ffmpeg = null;
+let ffmpegStatic = null;
+try {
+    // optional dependencies - use if available
+    ffmpeg = require('fluent-ffmpeg');
+    ffmpegStatic = require('ffmpeg-static');
+    if (ffmpeg && ffmpegStatic) {
+        ffmpeg.setFfmpegPath(ffmpegStatic);
+        console.log('ffmpeg available at', ffmpegStatic);
+    }
+} catch (e) {
+    console.warn('ffmpeg not available as optional dependency; .mov will be served as-is if uploaded.');
+    ffmpeg = null;
+    ffmpegStatic = null;
+}
 
 // Servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
@@ -234,7 +249,35 @@ app.post('/api/upload-media', upload.single('media'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         const playerId = req.body.playerId;
-        const publicUrl = `/uploads/${req.file.filename}`;
+        const originalFilename = req.file.filename;
+        let publicUrl = `/uploads/${originalFilename}`;
+
+        // If uploaded file is a .mov and ffmpeg is available, transcode to MP4 for better browser compatibility
+        const ext = path.extname(req.file.originalname || '').toLowerCase();
+        if ((ext === '.mov' || ext === '.qt') && ffmpeg) {
+            try {
+                const baseName = path.basename(originalFilename, path.extname(originalFilename));
+                const outFilename = `${baseName}.mp4`;
+                const outPath = path.join(uploadsDir, outFilename);
+
+                await new Promise((resolve, reject) => {
+                    ffmpeg(path.join(uploadsDir, originalFilename))
+                        .outputOptions(['-c:v libx264', '-preset veryfast', '-crf 28', '-c:a aac', '-b:a 128k'])
+                        .on('end', () => resolve())
+                        .on('error', (err) => reject(err))
+                        .save(outPath);
+                });
+
+                // remove original file to save space
+                try { fs.unlinkSync(path.join(uploadsDir, originalFilename)); } catch (e) { /* ignore */ }
+
+                publicUrl = `/uploads/${outFilename}`;
+            } catch (e) {
+                console.error('Erro ao transcodificar .mov para mp4:', e);
+                // fallback: keep original file
+                publicUrl = `/uploads/${originalFilename}`;
+            }
+        }
 
         // If a playerId was provided, update that player's image and persist
         if (playerId && players[playerId]) {

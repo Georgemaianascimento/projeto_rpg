@@ -16,11 +16,11 @@ function createPlayerInterface() {
         const card = document.createElement('div');
         card.className = 'player-card';
         card.dataset.playerId = i;
-
         card.innerHTML = `
             <input type="text" id="player-${i}-name" class="character-name" value="Jogador ${i}">
-            <div id="player-${i}-media" class="character-image"><img id="player-${i}-image" class="media-el" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='100%25' height='100%25' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23000' font-size='12'%3E${i}%3C/text%3E%3C/svg%3E" alt="Jogador ${i}"></div>
-            <div class="stats">
+            <div class="card-body">
+                <div id="player-${i}-media" class="character-image"><img id="player-${i}-image" class="media-el" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='100%25' height='100%25' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23000' font-size='12'%3E${i}%3C/text%3E%3C/svg%3E" alt="Jogador ${i}"></div>
+                <div class="stats">
                 <div class="stat">
                     <label>Vida</label>
                     <div class="bar-vertical health-bar">
@@ -56,8 +56,11 @@ function createPlayerInterface() {
                     </div>
                 </div>
             </div>
+                </div>
+            </div>
             <div class="player-actions">
                 <button class="reset-player" data-player="${i}">Resetar</button>
+                <button class="toggle-card" data-player="${i}" title="Ocultar/Revelar">🙈</button>
             </div>
         `;
 
@@ -124,6 +127,20 @@ function setupEventListeners() {
                 socket.emit('reset-player', { playerId });
             } catch (err) {
                 console.error('Falha ao enviar reset-player via socket:', err);
+            }
+        });
+    });
+
+    // Botões de ocultar/revelar por personagem
+    document.querySelectorAll('.toggle-card').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const playerId = btn.dataset.player;
+            const card = document.querySelector(`.player-card[data-player-id="${playerId}"]`);
+            if (!card) return;
+            if (card.classList.contains('collapsed')) {
+                showCard(playerId);
+            } else {
+                hideCard(playerId);
             }
         });
     });
@@ -420,6 +437,7 @@ function updatePlayerDisplay(playerId, playerData) {
                 video.playsInline = true;
                 video.src = url;
                 mediaContainer.replaceChild(video, existing);
+                console.log('funciono');    
             } else if (!isVideo && tag !== 'img') {
                 // replace video with img
                 const img = document.createElement('img');
@@ -488,6 +506,24 @@ function updatePlayerDisplay(playerId, playerData) {
     if (manaCurrentInput && document.activeElement !== manaCurrentInput) manaCurrentInput.value = currentMana;
     const manaMaxInput = document.getElementById(`player-${playerId}-mana-max`);
     if (manaMaxInput && document.activeElement !== manaMaxInput) manaMaxInput.value = maxMana;
+}
+
+// Ocultar um card de jogador (mantém um cabeçalho mínimo com botão de revelar)
+function hideCard(playerId) {
+    const card = document.querySelector(`.player-card[data-player-id="${playerId}"]`);
+    if (!card) return;
+    card.classList.add('collapsed');
+    const btn = card.querySelector('.toggle-card');
+    if (btn) btn.textContent = '👁';
+}
+
+// Revelar um card previamente ocultado
+function showCard(playerId) {
+    const card = document.querySelector(`.player-card[data-player-id="${playerId}"]`);
+    if (!card) return;
+    card.classList.remove('collapsed');
+    const btn = card.querySelector('.toggle-card');
+    if (btn) btn.textContent = '🙈';
 }
 
 // Eventos do Socket.IO

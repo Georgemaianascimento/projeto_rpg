@@ -13,6 +13,10 @@
     "pg": "^8.11.0",
     "multer": "^1.4.5-lts.1"
   },
+  "optionalDependencies": {
+    "fluent-ffmpeg": "^2.1.2",
+    "ffmpeg-static": "^5.1.0"
+  },
   "devDependencies": {
     "nodemon": "^2.0.22"
   }

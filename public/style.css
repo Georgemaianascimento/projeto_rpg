@@ -36,6 +36,36 @@ h1 {
     text-align: center;
 }
 
+.player-card {
+    position: relative;
+    transition: opacity 0.18s ease, height 0.18s ease;
+}
+
+.player-card.collapsed {
+    opacity: 0.9;
+}
+
+.player-card .card-body {
+    transition: max-height 0.18s ease, opacity 0.18s ease;
+}
+
+.player-card.collapsed .card-body {
+    display: none;
+}
+
+.toggle-card {
+    margin-left: 6px;
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid #000;
+    background: #fff;
+    cursor: pointer;
+}
+
+.toggle-card:hover {
+    background: #f0f0f0;
+}
+
 .character-name {
     width: 100%;
     padding: 6px;
