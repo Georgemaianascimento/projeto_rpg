@@ -211,9 +211,10 @@ async function compressVideoFile(file) {
                     const file = e.target.files[0];
                     if (!file) return;
 
-                    // Limits: images small, videos much larger
+                    // Limits: images small, videos can be large and uploaded to server
                     const IMAGE_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-                    const VIDEO_MAX_FILE_SIZE = 400 * 1024 * 1024; // 400 MB
+                    const SERVER_VIDEO_MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB allowed on server
+                    const CLIENT_VIDEO_COMPRESSION_LIMIT = 0; // sempre envia direto
 
                     if (file.type.startsWith('image/')) {
                         if (file.size > IMAGE_MAX_FILE_SIZE) {
@@ -247,21 +248,65 @@ async function compressVideoFile(file) {
                         };
                         reader.readAsDataURL(file);
                     } else if (file.type.startsWith('video/')) {
-                        if (file.size > VIDEO_MAX_FILE_SIZE) {
-                            alert('Vídeo muito grande. Limite: 400 MB.');
+                        if (file.size > SERVER_VIDEO_MAX_FILE_SIZE) {
+                            alert('Vídeo muito grande. Limite: 500 MB.');
                             return;
                         }
-                        // compress video client-side using ffmpeg.wasm (loaded from CDN)
-                        try {
-                            containerEl.innerHTML = '<div class="uploading">Compactando vídeo, aguarde...</div>';
-                            const compressedBlob = await compressVideoFile(file);
-                            // convert compressed blob to data URL for sending via socket
-                            const dataUrl = await blobToDataURL(compressedBlob);
-                            containerEl.innerHTML = `<video id="player-${playerId}-image" class="media-el" controls loop muted playsinline src="${dataUrl}"></video>`;
-                            socket.emit('update-image', { playerId, image: dataUrl });
-                        } catch (err) {
-                            console.error('Erro ao comprimir vídeo:', err);
-                            alert('Falha ao comprimir o vídeo. Veja o console para mais detalhes.');
+
+                        // If file is small enough, try client-side compression; otherwise upload to server
+                        const uploadToServer = file.size > CLIENT_VIDEO_COMPRESSION_LIMIT;
+
+                        if (uploadToServer) {
+                            // Upload large video directly to server (multipart/form-data)
+                            try {
+                                containerEl.innerHTML = '<div class="uploading">Enviando vídeo para o servidor, aguarde...</div>';
+                                const form = new FormData();
+                                form.append('media', file);
+                                form.append('playerId', playerId);
+                                const resp = await fetch('/api/upload-media', { method: 'POST', body: form });
+                                if (!resp.ok) {
+                                    const errText = await resp.text();
+                                    throw new Error(errText || 'Upload falhou');
+                                }
+                                const body = await resp.json();
+                                const url = body.url;
+                                containerEl.innerHTML = `<video id="player-${playerId}-image" class="media-el" controls loop muted playsinline src="${url}"></video>`;
+                                socket.emit('update-image', { playerId, image: url });
+                            } catch (err) {
+                                console.error('Erro ao enviar vídeo para o servidor:', err);
+                                alert('Falha ao enviar o vídeo. Veja o console para mais detalhes.');
+                            }
+                        } else {
+                            // Try client-side compression first for small files
+                            try {
+                                containerEl.innerHTML = '<div class="uploading">Compactando vídeo, aguarde...</div>';
+                                const compressedBlob = await compressVideoFile(file);
+                                // convert compressed blob to data URL for sending via socket
+                                const dataUrl = await blobToDataURL(compressedBlob);
+                                containerEl.innerHTML = `<video id="player-${playerId}-image" class="media-el" controls loop muted playsinline src="${dataUrl}"></video>`;
+                                socket.emit('update-image', { playerId, image: dataUrl });
+                            } catch (err) {
+                                console.warn('Compressão cliente falhou, tentando upload ao servidor...', err);
+                                // fallback: upload to server
+                                try {
+                                    containerEl.innerHTML = '<div class="uploading">Enviando vídeo para o servidor, aguarde...</div>';
+                                    const form = new FormData();
+                                    form.append('media', file);
+                                    form.append('playerId', playerId);
+                                    const resp = await fetch('/api/upload-media', { method: 'POST', body: form });
+                                    if (!resp.ok) {
+                                        const errText = await resp.text();
+                                        throw new Error(errText || 'Upload falhou');
+                                    }
+                                    const body = await resp.json();
+                                    const url = body.url;
+                                    containerEl.innerHTML = `<video id="player-${playerId}-image" class="media-el" controls loop muted playsinline src="${url}"></video>`;
+                                    socket.emit('update-image', { playerId, image: url });
+                                } catch (err2) {
+                                    console.error('Erro ao enviar vídeo para o servidor (fallback):', err2);
+                                    alert('Falha ao processar o vídeo. Veja o console para mais detalhes.');
+                                }
+                            }
                         }
                     } else {
                         alert('Tipo de arquivo não suportado.');
@@ -354,10 +399,47 @@ function updatePlayerDisplay(playerId, playerData) {
     // Atualizar nome
     document.getElementById(`player-${playerId}-name`).value = playerData.name;
     
-    // Atualizar imagem (se existir no card)
-    const imgEl = document.getElementById(`player-${playerId}-image`);
-    if (imgEl && playerData.image) {
-        imgEl.src = playerData.image;
+    // Atualizar mídia (imagem ou vídeo). Substitui elemento se o tipo mudar.
+    const mediaContainer = document.getElementById(`player-${playerId}-media`);
+    const mediaId = `player-${playerId}-image`;
+    const url = playerData.image || `https://via.placeholder.com/150x200?text=Personagem+${playerId}`;
+    const isVideo = typeof url === 'string' && (url.startsWith('data:video') || /\.(mp4|webm|ogg|mov|mkv)(\?.*)?$/i.test(url));
+
+    if (mediaContainer) {
+        let existing = document.getElementById(mediaId);
+        if (existing) {
+            const tag = existing.tagName.toLowerCase();
+            if (isVideo && tag !== 'video') {
+                // replace img with video
+                const video = document.createElement('video');
+                video.id = mediaId;
+                video.className = 'media-el';
+                video.controls = true;
+                video.loop = true;
+                video.muted = true;
+                video.playsInline = true;
+                video.src = url;
+                mediaContainer.replaceChild(video, existing);
+            } else if (!isVideo && tag !== 'img') {
+                // replace video with img
+                const img = document.createElement('img');
+                img.id = mediaId;
+                img.className = 'media-el';
+                img.alt = `Jogador ${playerId}`;
+                img.src = url;
+                mediaContainer.replaceChild(img, existing);
+            } else {
+                // same tag, just update src
+                try { existing.src = url; } catch (e) { existing.setAttribute('src', url); }
+            }
+        } else {
+            // no existing media element, create appropriate one
+            if (isVideo) {
+                mediaContainer.innerHTML = `<video id="${mediaId}" class="media-el" controls loop muted playsinline src="${url}"></video>`;
+            } else {
+                mediaContainer.innerHTML = `<img id="${mediaId}" class="media-el" src="${url}" alt="Jogador ${playerId}">`;
+            }
+        }
     }
 
     // Atualizar vida (usar height para barra vertical)

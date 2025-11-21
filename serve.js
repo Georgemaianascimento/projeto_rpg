@@ -7,9 +7,29 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 const { Pool } = require('pg');
+const fs = require('fs');
+const multer = require('multer');
 
 // Servir arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Multer setup for large uploads (up to 600 MB allowed)
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadsDir);
+    },
+    filename: function (req, file, cb) {
+        const safeName = file.originalname.replace(/\s+/g, '_');
+        cb(null, `${Date.now()}-${safeName}`);
+    }
+});
+const upload = multer({ storage, limits: { fileSize: 600 * 1024 * 1024 } });
 
 // Estado dos jogadores (em memória, sincronizado com Postgres)
 let players = {};
@@ -207,6 +227,31 @@ io.on('connection', (socket) => {
 // API REST para integração com OBS ou outras ferramentas
 app.get('/api/players', (req, res) => {
     res.json(players);
+});
+
+// Endpoint para upload de mídia (image/video). Campo esperado: 'media'
+app.post('/api/upload-media', upload.single('media'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        const playerId = req.body.playerId;
+        const publicUrl = `/uploads/${req.file.filename}`;
+
+        // If a playerId was provided, update that player's image and persist
+        if (playerId && players[playerId]) {
+            players[playerId].image = publicUrl;
+            try {
+                await pool.query('UPDATE players SET image=$1 WHERE id=$2', [publicUrl, playerId]);
+            } catch (e) {
+                console.error('Falha ao persistir imagem no DB para id', playerId, e.message || e);
+            }
+            io.emit('player-updated', { playerId: Number(playerId), image: publicUrl });
+        }
+
+        return res.json({ url: publicUrl });
+    } catch (err) {
+        console.error('Erro em /api/upload-media:', err);
+        return res.status(500).json({ error: 'Erro no servidor' });
+    }
 });
 
 app.post('/api/player/:id/health', express.json(), (req, res) => {

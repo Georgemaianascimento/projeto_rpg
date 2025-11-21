@@ -62,8 +62,9 @@ h1 {
 }
 
 .media-el {
-    width: 120px;
-    height: 160px;
+    /* Match the visual size used by .character-image img for a consistent look */
+    width: 225px;
+    height: 225px;
     object-fit: cover;
     display: block;
     margin: 0 auto 8px auto;
