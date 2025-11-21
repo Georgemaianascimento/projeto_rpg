@@ -155,13 +155,27 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Resetar todos os jogadores para os valores iniciais (defaults)
+    // Resetar todos os jogadores
     socket.on('reset-all', async () => {
         for (let i = 1; i <= 8; i++) {
-            const defaultName = `Jogador ${i}`;
-            const defaultImage = `https://via.placeholder.com/150x200?text=Personagem+${i}`;
+            if (players[i]) {
+                players[i].health = players[i].maxHealth;
+                players[i].mana = players[i].maxMana;
+                await pool.query('UPDATE players SET health=$1, mana=$2 WHERE id=$3', [players[i].health, players[i].mana, i]);
+            }
+        }
+        io.emit('initial-state', players);
+    });
+
+    // Resetar um jogador específico
+    socket.on('reset-player', async (data) => {
+        try {
+            const playerId = Number(data.playerId || data.player);
+            if (!playerId || !players[playerId]) return;
+            const defaultName = `Jogador ${playerId}`;
+            const defaultImage = `https://via.placeholder.com/150x200?text=Personagem+${playerId}`;
             // update in-memory
-            players[i] = {
+            players[playerId] = {
                 name: defaultName,
                 health: 100,
                 maxHealth: 100,
@@ -169,13 +183,19 @@ io.on('connection', (socket) => {
                 maxMana: 100,
                 image: defaultImage
             };
-            // persist to DB
-            await pool.query(
-                'UPDATE players SET name=$1, health=$2, maxhealth=$3, mana=$4, maxmana=$5, image=$6 WHERE id=$7',
-                [defaultName, 100, 100, 100, 100, defaultImage, i]
-            );
+            // persist to DB (guarded)
+            try {
+                await pool.query(
+                    'UPDATE players SET name=$1, health=$2, maxhealth=$3, mana=$4, maxmana=$5, image=$6 WHERE id=$7',
+                    [defaultName, 100, 100, 100, 100, defaultImage, playerId]
+                );
+            } catch (e) {
+                console.error('Falha ao persistir reset-player no DB para id', playerId, e.message || e);
+            }
+            io.emit('player-updated', { playerId, name: defaultName, health: 100, maxHealth: 100, mana: 100, maxMana: 100, image: defaultImage });
+        } catch (err) {
+            console.error('Erro no handler reset-player:', err.message || err);
         }
-        io.emit('initial-state', players);
     });
 
     // Desconexão
@@ -189,14 +209,16 @@ app.get('/api/players', (req, res) => {
     res.json(players);
 });
 
-app.post('/api/player/:id/health', express.json(), async (req, res) => {
+app.post('/api/player/:id/health', express.json(), (req, res) => {
     const playerId = req.params.id;
     const { amount } = req.body;
     
     if (players[playerId] && typeof amount === 'number') {
-        players[playerId].health = Math.max(0, (Number(players[playerId].health) || 0) + Number(amount));
-        await pool.query('UPDATE players SET health=$1 WHERE id=$2', [players[playerId].health, playerId]);
-        io.emit('player-updated', { playerId, health: players[playerId].health });
+        players[playerId].health = Math.max(0, Math.min(players[playerId].health + amount, players[playerId].maxHealth));
+        io.emit('player-updated', {
+            playerId,
+            health: players[playerId].health
+        });
         res.json({ success: true, health: players[playerId].health });
     } else {
         res.status(400).json({ error: 'Dados inválidos' });
