@@ -544,6 +544,13 @@ socket.on('player-updated', (data) => {
         if (data.mana !== undefined) {
             players[data.playerId].mana = data.mana;
         }
+        // Ensure max health/max mana updates propagate
+        if (data.maxHealth !== undefined) {
+            players[data.playerId].maxHealth = data.maxHealth;
+        }
+        if (data.maxMana !== undefined) {
+            players[data.playerId].maxMana = data.maxMana;
+        }
         if (data.name !== undefined) {
             players[data.playerId].name = data.name;
         }
