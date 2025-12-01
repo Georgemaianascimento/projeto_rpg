@@ -51,7 +51,25 @@ let players = {};
 
 // Configurar pool Postgres usando DATABASE_URL
 const databaseUrl = process.env.DATABASE_URL;
-const pool = new Pool({ connectionString: databaseUrl });
+// Use SSL for non-local connections (e.g., Heroku). For Docker local service hostnames or true
+// localhost, we disable SSL. Parse the URL to check the hostname (safer than regex matching).
+let useSsl = false;
+if (databaseUrl) {
+    try {
+        const urlObj = new URL(databaseUrl);
+        const host = urlObj.hostname;
+        // treat 'localhost', '127.0.0.1', or common docker hostnames like 'db' as local (no SSL)
+        useSsl = !(host === 'localhost' || host === '127.0.0.1' || host === 'db' || host === 'postgres');
+    } catch (err) {
+        // fallback to simple string checks if parsing fails
+        useSsl = !(/localhost|127\.0\.0\.1|@db:/.test(databaseUrl));
+    }
+}
+const pool = new Pool({
+    connectionString: databaseUrl,
+    ssl: useSsl ? { rejectUnauthorized: false } : false
+});
+console.log('Database SSL enabled:', useSsl);
 
 async function initDbAndLoadPlayers() {
     // create table if not exists

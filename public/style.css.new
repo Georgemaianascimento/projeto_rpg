@@ -1,0 +1,229 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --card-w: 225px;
+    --card-h: 420px;
+    --grid-gap: 15px;
+}
+
+body {
+    font-family: 'Courier New', monospace;
+    background-color: #ffffff;
+    color: #000000;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* Grid with fixed column widths (Method B) */
+.players-grid {
+    display: grid;
+    grid-template-columns: repeat(4, var(--card-w));
+    gap: var(--grid-gap);
+    justify-content: center;
+    /* Keep overall grid size stable so OBS scenes don't reflow */
+    width: calc(4 * var(--card-w) + 3 * var(--grid-gap));
+    min-height: calc(2 * var(--card-h) + var(--grid-gap));
+}
+
+/* Player card box (fixed size) */
+.player-card {
+    background-color: #ffffff;
+    border: 1px solid #000000;
+    padding: 10px;
+    text-align: center;
+    width: var(--card-w);
+    height: var(--card-h);
+    box-sizing: border-box;
+    overflow: hidden;
+    position: relative;
+    transition: opacity 0.18s ease;
+}
+
+/* Collapsed state hides inner content but keeps box dimensions */
+.player-card .card-body {
+    transition: opacity 0.18s ease;
+}
+.player-card.collapsed .card-body {
+    display: none;
+}
+.player-card.collapsed {
+    opacity: 0.95;
+}
+
+/* Toggle button */
+.toggle-card {
+    margin-left: 6px;
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid #000;
+    background: #fff;
+    cursor: pointer;
+}
+.toggle-card:hover {
+    background: #f0f0f0;
+}
+
+.character-name {
+    width: 100%;
+    padding: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    border: 1px solid #000000;
+    background-color: #ffffff;
+    margin-bottom: 10px;
+}
+
+.character-image {
+    margin: 8px 0;
+}
+
+.character-image img {
+    width: var(--card-w);
+    height: 225px;
+    object-fit: cover;
+    display: block;
+    margin: 0 auto 8px auto;
+    border: 1px solid #000;
+    background: #eee;
+}
+
+.media-el {
+    width: var(--card-w);
+    height: 225px;
+    object-fit: cover;
+    display: block;
+    margin: 0 auto 8px auto;
+    border: 1px solid #000;
+    background: #000;
+}
+
+.stats {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat label {
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.bar-vertical {
+    width: 50px;
+    height: 150px;
+    background-color: #e0e0e0;
+    border: 1px solid #000000;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+}
+
+.bar-fill-vertical {
+    width: 100%;
+    background-color: #000000;
+    transition: height 0.2s;
+}
+
+.health-bar .bar-fill-vertical {
+    background-color: #ff0000;
+}
+
+.mana-bar .bar-fill-vertical {
+    background-color: #0000ff;
+}
+
+.bar-value-vertical {
+    margin-top: 5px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.controls {
+    display: flex;
+    gap: 4px;
+    margin-top: 10px;
+}
+
+.controls button {
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: bold;
+    border: 1px solid #000000;
+    background-color: #ffffff;
+    cursor: pointer;
+}
+
+.controls button:hover {
+    background-color: #f0f0f0;
+}
+
+.reset-btn {
+    display: block;
+    margin: 0 auto 20px auto;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: bold;
+    border: 1px solid #000000;
+    background-color: #ffffff;
+    cursor: pointer;
+}
+
+.reset-btn:hover {
+    background-color: #ffcccc;
+}
+
+/* Hide second row visually but keep grid size stable. Use .row-2 on items or nth-child fallback */
+.players-grid.hide-row-2 .row-2,
+.players-grid.hide-row-2 .player-card:nth-child(n+5) {
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+}
+
+/* Responsiveness: for medium screens use 2 fixed columns; for very small screens switch to single-column responsive */
+@media (max-width: 1200px) {
+    .players-grid {
+        grid-template-columns: repeat(2, var(--card-w));
+        width: calc(2 * var(--card-w) + 1 * var(--grid-gap));
+        min-height: calc(4 * var(--card-h) + var(--grid-gap));
+    }
+}
+
+@media (max-width: 600px) {
+    .players-grid {
+        grid-template-columns: 1fr;
+        width: auto;
+        min-height: auto;
+    }
+    .player-card {
+        width: 100%;
+        height: auto;
+    }
+    .media-el, .character-image img {
+        width: 100%;
+        height: auto;
+    }
+}
