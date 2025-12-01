@@ -108,6 +108,7 @@ async function initDbAndLoadPlayers() {
             mana: Number(row.mana) || 0,
             maxMana: Number(row.maxmana) || 100,
             image: row.image || `https://via.placeholder.com/150x200?text=Personagem+${row.id}`
+            ,hidden: false
         };
     }
 }
@@ -119,12 +120,12 @@ io.on('connection', (socket) => {
     // Enviar estado atual para o novo cliente
     socket.emit('initial-state', players);
 
-    // Atualizar vida (incremental)
+    // Atualizar vida (incremental) — allow negative current health values (no floor at 0)
     socket.on('update-health', async (data) => {
         const { playerId, amount } = data;
         const player = players[playerId];
         if (player) {
-            player.health = Math.max(0, (Number(player.health) || 0) + Number(amount));
+            player.health = (Number(player.health) || 0) + Number(amount);
             // persist
             await pool.query('UPDATE players SET health=$1 WHERE id=$2', [player.health, playerId]);
             io.emit('player-updated', { playerId, health: player.health });
@@ -142,12 +143,12 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Set current health directly
+    // Set current health directly — allow negative current values (no min clamp)
     socket.on('set-health', async (data) => {
         const { playerId, value } = data;
         const player = players[playerId];
         if (player && typeof value === 'number') {
-            player.health = Math.max(0, value);
+            player.health = Number(value);
             await pool.query('UPDATE players SET health=$1 WHERE id=$2', [player.health, playerId]);
             io.emit('player-updated', { playerId, health: player.health });
         }
@@ -234,7 +235,8 @@ io.on('connection', (socket) => {
                 maxHealth: 100,
                 mana: 100,
                 maxMana: 100,
-                image: defaultImage
+                image: defaultImage,
+                hidden: false
             };
             // persist to DB (guarded)
             try {
@@ -245,9 +247,24 @@ io.on('connection', (socket) => {
             } catch (e) {
                 console.error('Falha ao persistir reset-player no DB para id', playerId, e.message || e);
             }
-            io.emit('player-updated', { playerId, name: defaultName, health: 100, maxHealth: 100, mana: 100, maxMana: 100, image: defaultImage });
+            io.emit('player-updated', { playerId, name: defaultName, health: 100, maxHealth: 100, mana: 100, maxMana: 100, image: defaultImage, hidden: false });
         } catch (err) {
             console.error('Erro no handler reset-player:', err.message || err);
+        }
+    });
+
+    // Set visibility (hide/show) for a card — broadcast to all clients
+    socket.on('set-visibility', async (data) => {
+        try {
+            const playerId = Number(data.playerId || data.player);
+            const hidden = !!data.hidden;
+            if (!playerId || !players[playerId]) return;
+            players[playerId].hidden = hidden;
+            // Broadcast to all clients
+            io.emit('player-updated', { playerId, hidden });
+            // Note: not persisted in DB for now (in-memory only)
+        } catch (err) {
+            console.error('Erro no handler set-visibility:', err.message || err);
         }
     });
 
@@ -320,7 +337,8 @@ app.post('/api/player/:id/health', express.json(), (req, res) => {
     const { amount } = req.body;
     
     if (players[playerId] && typeof amount === 'number') {
-        players[playerId].health = Math.max(0, Math.min(players[playerId].health + amount, players[playerId].maxHealth));
+        // Allow negative current health, but cap at maxHealth so it doesn't exceed allowed maximum
+        players[playerId].health = Math.min((Number(players[playerId].health) || 0) + Number(amount), players[playerId].maxHealth);
         io.emit('player-updated', {
             playerId,
             health: players[playerId].health

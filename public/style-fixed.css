@@ -74,9 +74,8 @@ h1 {
     background: #fff;
     cursor: pointer;
 }
-.toggle-card:hover {
-    background: #f0f0f0;
-}
+.toggle-card:hover { background:#f3f4f6; }
+.toggle-card:focus { outline: 3px solid rgba(37,99,235,0.18); }
 
 .character-name {
     width: 100%;
@@ -134,17 +133,19 @@ h1 {
 .bar-vertical {
     width: 50px;
     height: 150px;
-    background-color: #e0e0e0;
-    border: 1px solid #000000;
+        background-color: #e0e0e0;
+        border: 1px solid rgba(0,0,0,0.06);
     position: relative;
     display: flex;
     align-items: flex-end;
+        border-radius: 0;
 }
 
 .bar-fill-vertical {
     width: 100%;
     background-color: #000000;
     transition: height 0.2s;
+    border-radius: 0;
 }
 
 .health-bar .bar-fill-vertical {
@@ -176,9 +177,8 @@ h1 {
     cursor: pointer;
 }
 
-.controls button:hover {
-    background-color: #f0f0f0;
-}
+.controls button:hover { background:#f8fafc; }
+.controls button:focus { outline: 3px solid rgba(37,99,235,0.18); }
 
 .reset-btn {
     display: block;
@@ -191,9 +191,8 @@ h1 {
     cursor: pointer;
 }
 
-.reset-btn:hover {
-    background-color: #ffcccc;
-}
+.reset-btn:hover { background: linear-gradient(180deg,#fff7f7,#fff1f1); }
+.reset-btn:focus { outline: 3px solid rgba(37,99,235,0.18); }
 
 /* Hide second row visually but keep grid size stable. Use .row-2 on items or nth-child fallback */
 .players-grid.hide-row-2 .row-2,

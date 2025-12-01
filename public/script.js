@@ -85,7 +85,7 @@ function setupEventListeners() {
             socket.emit(stat === 'health' ? 'update-health' : 'update-mana', { playerId, amount });
             // ensure local state
             socket.players = socket.players || {};
-            socket.players[playerId] = socket.players[playerId] || { health: DEFAULT_MAX_HEALTH, maxHealth: DEFAULT_MAX_HEALTH, mana: DEFAULT_MAX_MANA, maxMana: DEFAULT_MAX_MANA, name: `Jogador ${playerId}` };
+            socket.players[playerId] = socket.players[playerId] || { health: DEFAULT_MAX_HEALTH, maxHealth: DEFAULT_MAX_HEALTH, mana: DEFAULT_MAX_MANA, maxMana: DEFAULT_MAX_MANA, name: `Jogador ${playerId}`, hidden: false };
             // compute new current value only
             if (stat === 'health') {
                 socket.players[playerId].health = (Number(socket.players[playerId].health) || 0) + amount;
@@ -115,6 +115,7 @@ function setupEventListeners() {
                 name: `Jogador ${playerId}`,
                 health: DEFAULT_CURREN_HEALTH,
                 maxHealth: DEFAULT_MAX_HEALTH,
+                hidden: false,
                 mana: DEFAULT_CURREN_MANA,
                 maxMana: DEFAULT_MAX_MANA,
                 image: `https://via.placeholder.com/150x200?text=Personagem+${playerId}`
@@ -131,17 +132,17 @@ function setupEventListeners() {
         });
     });
 
-    // Botões de ocultar/revelar por personagem
+    // Botões de ocultar/revelar por personagem (emitir para o servidor, para que todo mundo veja)
     document.querySelectorAll('.toggle-card').forEach(btn => {
         btn.addEventListener('click', () => {
             const playerId = btn.dataset.player;
             const card = document.querySelector(`.player-card[data-player-id="${playerId}"]`);
             if (!card) return;
-            if (card.classList.contains('collapsed')) {
-                showCard(playerId);
-            } else {
-                hideCard(playerId);
-            }
+            const shouldHide = !card.classList.contains('collapsed');
+            // Emit the visibility change to server (server will broadcast to other clients)
+            try { socket.emit('set-visibility', { playerId, hidden: shouldHide }); } catch(e) { console.warn('Emit visibility failed', e); }
+            // Update locally for immediate feedback; server will broadcast to confirm to all clients
+            if (shouldHide) hideCard(playerId); else showCard(playerId);
         });
     });
 
@@ -506,6 +507,20 @@ function updatePlayerDisplay(playerId, playerData) {
     if (manaCurrentInput && document.activeElement !== manaCurrentInput) manaCurrentInput.value = currentMana;
     const manaMaxInput = document.getElementById(`player-${playerId}-mana-max`);
     if (manaMaxInput && document.activeElement !== manaMaxInput) manaMaxInput.value = maxMana;
+
+    // Visibility (hidden/collapsed) states
+    const card = document.querySelector(`.player-card[data-player-id="${playerId}"]`);
+    if (card) {
+        if (playerData.hidden) {
+            card.classList.add('collapsed');
+            const btn = card.querySelector('.toggle-card');
+            if (btn) btn.textContent = '👁';
+        } else {
+            card.classList.remove('collapsed');
+            const btn = card.querySelector('.toggle-card');
+            if (btn) btn.textContent = '🙈';
+        }
+    }
 }
 
 // Ocultar um card de jogador (mantém um cabeçalho mínimo com botão de revelar)
@@ -556,6 +571,17 @@ socket.on('player-updated', (data) => {
         }
         if (data.image !== undefined) {
             players[data.playerId].image = data.image;
+        }
+        if (data.hidden !== undefined) {
+            players[data.playerId].hidden = !!data.hidden;
+            // apply to UI
+            const isHidden = players[data.playerId].hidden;
+            const card = document.querySelector(`.player-card[data-player-id="${data.playerId}"]`);
+            if (card) {
+                if (isHidden) card.classList.add('collapsed'); else card.classList.remove('collapsed');
+                const btn = card.querySelector('.toggle-card');
+                if (btn) btn.textContent = isHidden ? '👁' : '🙈';
+            }
         }
         updatePlayerDisplay(data.playerId, players[data.playerId]);
     }
