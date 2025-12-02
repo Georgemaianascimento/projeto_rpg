@@ -27,8 +27,8 @@ function createPlayerInterface() {
                         <div id="player-${i}-health-bar" class="bar-fill-vertical" style="height: 100%"></div>
                     </div>
                     <div class="bar-values">
-                        <input type="number" id="player-${i}-health-max" class="health-max" value="100" style="width:60px"> /
-                        <input type="number" id="player-${i}-health-current" class="health-current" value="100" style="width:60px">
+                        <input type="number" id="player-${i}-health-current" class="health-current" value="100" style="width:60px"> /
+                        <input type="number" id="player-${i}-health-max" class="health-max" value="100" style="width:60px">
                     </div>
                     <div id="player-${i}-health-value" class="bar-value-vertical">100/100</div>
                     <div class="controls">
@@ -44,8 +44,8 @@ function createPlayerInterface() {
                         <div id="player-${i}-mana-bar" class="bar-fill-vertical" style="height: 100%"></div>
                     </div>
                     <div class="bar-values">
-                        <input type="number" id="player-${i}-mana-max" class="mana-max" value="100" style="width:60px"> /
-                        <input type="number" id="player-${i}-mana-current" class="mana-current" value="100" style="width:60px">
+                        <input type="number" id="player-${i}-mana-current" class="mana-current" value="100" style="width:60px"> /
+                        <input type="number" id="player-${i}-mana-max" class="mana-max" value="100" style="width:60px">
                     </div>
                     <div id="player-${i}-mana-value" class="bar-value-vertical">100/100</div>
                     <div class="controls">
@@ -103,6 +103,25 @@ function setupEventListeners() {
         });
     });
 
+        // Toggle Dark Mode: only change background color
+        const toggleDarkBtn = document.getElementById('toggle-dark');
+        if (toggleDarkBtn) {
+            // initialize state from localStorage
+            const saved = localStorage.getItem('darkMode');
+            const isDark = saved === 'true';
+            if (isDark) {
+                document.body.classList.add('dark-mode');
+                toggleDarkBtn.textContent = 'Modo Claro';
+            } else {
+                document.body.classList.remove('dark-mode');
+                toggleDarkBtn.textContent = 'Modo Escuro';
+            }
+            toggleDarkBtn.addEventListener('click', () => {
+                const newDark = document.body.classList.toggle('dark-mode');
+                localStorage.setItem('darkMode', newDark ? 'true' : 'false');
+                toggleDarkBtn.textContent = newDark ? 'Modo Claro' : 'Modo Escuro';
+            });
+        }
     // Botões de reset por personagem
     document.querySelectorAll('.reset-player').forEach(btn => {
         btn.addEventListener('click', () => {

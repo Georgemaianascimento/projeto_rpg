@@ -6,10 +6,37 @@
     --muted: #94a3b8;
     --surface: #ffffff;
     --bg: #f8fafc;
+    --bg-dark: #0b1220;
     --card-border: rgba(0,0,0,0.06);
+    /* Dark mode color tokens for card surfaces and text */
+    --card-surface-dark: #0f1724; /* deep slate */
+    --card-border-dark: rgba(255,255,255,0.06);
+    --text-dark: #e6eef8;
+    --muted-dark: #9aa8bb;
+    --btn-bg: #111827; /* fallback token used for button text color */
+    --btn-text-dark: #e6eef8;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background: linear-gradient(180deg,var(--bg),#fff); color:#0f172a; padding:20px; }
+/* Dark mode toggles only the page background */
+body.dark-mode { background: var(--bg-dark) !important; }
+
+/* Dark-mode card surface and components (no layout changes) */
+.dark-mode .player-card {
+    background-color: var(--card-surface-dark);
+    border-color: var(--card-border-dark);
+    color: var(--text-dark);
+    box-shadow: none;
+}
+.dark-mode .character-name { background-color: transparent; border-color: var(--card-border-dark); color: var(--text-dark); }
+.dark-mode .character-image img, .dark-mode .media-el { border-color: rgba(255,255,255,0.04); background: #111827; }
+.dark-mode .toggle-card { background: transparent; border-color: var(--card-border-dark); color: var(--text-dark); }
+.dark-mode .controls button { background-color: transparent; border-color: var(--card-border-dark); color: var(--text-dark); }
+.dark-mode .controls button:hover { background: rgba(255,255,255,0.02); }
+.dark-mode .reset-btn { background: transparent; border-color: var(--card-border-dark); color: var(--text-dark); }
+.dark-mode .bar-vertical { background-color: #111827; border-color: rgba(255,255,255,0.04); }
+.dark-mode .bar-value-vertical { color: var(--text-dark); }
+
 
 .container {
     max-width: 1600px;
