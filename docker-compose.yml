@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   app:
     build: .
@@ -6,26 +5,10 @@ services:
       - "3333:3333"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgres://appuser:apppassword@db:5432/appdb
       - PORT=3333
-    depends_on:
-      - db
-    # optional: bind mount for development to see changes without rebuilding
-    # volumes:
-    #   - ./:/usr/src/app
-    #   - /usr/src/app/node_modules
-    restart: unless-stopped
-  db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: apppassword
-      POSTGRES_DB: appdb
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - dbdata:/usr/src/app
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  dbdata:
