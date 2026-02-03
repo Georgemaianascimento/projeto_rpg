@@ -6,9 +6,5 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3333
-    volumes:
-      - dbdata:/usr/src/app
+      - DATABASE_URL=postgresql://db_rpg_user:33eKFlIk437tqCeMiCw304KCYVM1jvOL@dpg-d610j1shg0os73fatcrg-a.virginia-postgres.render.com/db_rpg
     restart: unless-stopped
-
-volumes:
-  dbdata:

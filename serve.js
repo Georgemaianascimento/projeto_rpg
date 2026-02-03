@@ -2,11 +2,11 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const { Client } = require('pg');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
-const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const multer = require('multer');
 let ffmpeg = null;
@@ -46,55 +46,46 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 600 * 1024 * 1024 } });
 
-// Estado dos jogadores (em memória, sincronizado com SQLite)
+// Estado dos jogadores (em memória, sincronizado com PostgreSQL)
 let players = {};
 
-// Conectar ao banco SQLite
-const db = new sqlite3.Database('./players.db');
+// Conectar ao banco PostgreSQL
+const db = new Client({
+    connectionString: process.env.DATABASE_URL || 'postgresql://db_rpg_user:33eKFlIk437tqCeMiCw304KCYVM1jvOL@dpg-d610j1shg0os73fatcrg-a.virginia-postgres.render.com/db_rpg',
+    ssl: true
+});
 
 async function initDbAndLoadPlayers() {
+    await db.connect();
+    
     // create table if not exists
-    await new Promise((resolve, reject) => {
-        db.run(`
-            CREATE TABLE IF NOT EXISTS players (
-                id INTEGER PRIMARY KEY,
-                name TEXT,
-                health INTEGER,
-                maxhealth INTEGER,
-                mana INTEGER,
-                maxmana INTEGER,
-                image TEXT
-            )
-        `, (err) => {
-            if (err) reject(err);
-            else resolve();
-        });
-    });
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS players (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            health INTEGER,
+            maxhealth INTEGER,
+            mana INTEGER,
+            maxmana INTEGER,
+            image TEXT
+        )
+    `);
 
     // insert defaults for ids 1..8 if not exists
     for (let i = 1; i <= 8; i++) {
         const defaultName = `Jogador ${i}`;
         const defaultImage = `https://via.placeholder.com/150x200?text=Personagem+${i}`;
-        await new Promise((resolve, reject) => {
-            db.run(
-                `INSERT OR IGNORE INTO players(id, name, health, maxhealth, mana, maxmana, image)
-                 VALUES(?, ?, 100, 100, 100, 100, ?)`,
-                [i, defaultName, defaultImage],
-                (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                }
-            );
-        });
+        await db.query(
+            `INSERT INTO players(id, name, health, maxhealth, mana, maxmana, image)
+             VALUES($1, $2, 100, 100, 100, 100, $3)
+             ON CONFLICT (id) DO NOTHING`,
+            [i, defaultName, defaultImage]
+        );
     }
 
     // load players into memory
-    const rows = await new Promise((resolve, reject) => {
-        db.all('SELECT id, name, health, maxhealth, mana, maxmana, image FROM players ORDER BY id', (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-        });
-    });
+    const res = await db.query('SELECT id, name, health, maxhealth, mana, maxmana, image FROM players ORDER BY id');
+    const rows = res.rows;
     players = {};
     for (const row of rows) {
         players[row.id] = {
@@ -123,12 +114,7 @@ io.on('connection', (socket) => {
         if (player) {
             player.health = (Number(player.health) || 0) + Number(amount);
             // persist
-            await new Promise((resolve, reject) => {
-                db.run('UPDATE players SET health=? WHERE id=?', [player.health, playerId], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.query('UPDATE players SET health=$1 WHERE id=$2', [player.health, playerId]);
             io.emit('player-updated', { playerId, health: player.health });
         }
     });
@@ -139,12 +125,7 @@ io.on('connection', (socket) => {
         const player = players[playerId];
         if (player) {
             player.mana = Math.max(0, (Number(player.mana) || 0) + Number(amount));
-            await new Promise((resolve, reject) => {
-                db.run('UPDATE players SET mana=? WHERE id=?', [player.mana, playerId], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.query('UPDATE players SET mana=$1 WHERE id=$2', [player.mana, playerId]);
             io.emit('player-updated', { playerId, mana: player.mana });
         }
     });
@@ -155,12 +136,7 @@ io.on('connection', (socket) => {
         const player = players[playerId];
         if (player && typeof value === 'number') {
             player.health = Number(value);
-            await new Promise((resolve, reject) => {
-                db.run('UPDATE players SET health=? WHERE id=?', [player.health, playerId], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.query('UPDATE players SET health=$1 WHERE id=$2', [player.health, playerId]);
             io.emit('player-updated', { playerId, health: player.health });
         }
     });
@@ -171,12 +147,7 @@ io.on('connection', (socket) => {
         const player = players[playerId];
         if (player && typeof value === 'number') {
             player.maxHealth = Math.max(1, value);
-            await new Promise((resolve, reject) => {
-                db.run('UPDATE players SET maxhealth=? WHERE id=?', [player.maxHealth, playerId], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.query('UPDATE players SET maxhealth=$1 WHERE id=$2', [player.maxHealth, playerId]);
             io.emit('player-updated', { playerId, maxHealth: player.maxHealth });
         }
     });
@@ -187,12 +158,7 @@ io.on('connection', (socket) => {
         const player = players[playerId];
         if (player && typeof value === 'number') {
             player.mana = Math.max(0, value);
-            await new Promise((resolve, reject) => {
-                db.run('UPDATE players SET mana=? WHERE id=?', [player.mana, playerId], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.query('UPDATE players SET mana=$1 WHERE id=$2', [player.mana, playerId]);
             io.emit('player-updated', { playerId, mana: player.mana });
         }
     });
@@ -203,12 +169,7 @@ io.on('connection', (socket) => {
         const player = players[playerId];
         if (player && typeof value === 'number') {
             player.maxMana = Math.max(1, value);
-            await new Promise((resolve, reject) => {
-                db.run('UPDATE players SET maxmana=? WHERE id=?', [player.maxMana, playerId], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.query('UPDATE players SET maxmana=$1 WHERE id=$2', [player.maxMana, playerId]);
             io.emit('player-updated', { playerId, maxMana: player.maxMana });
         }
     });
@@ -219,12 +180,7 @@ io.on('connection', (socket) => {
         const player = players[playerId];
         if (player) {
             player.name = name;
-            await new Promise((resolve, reject) => {
-                db.run('UPDATE players SET name=? WHERE id=?', [player.name, playerId], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.query('UPDATE players SET name=$1 WHERE id=$2', [player.name, playerId]);
             io.emit('player-updated', { playerId, name: player.name });
         }
     });
@@ -235,12 +191,7 @@ io.on('connection', (socket) => {
         const player = players[playerId];
         if (player) {
             player.image = image;
-            await new Promise((resolve, reject) => {
-                db.run('UPDATE players SET image=? WHERE id=?', [player.image, playerId], (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+            await db.query('UPDATE players SET image=$1 WHERE id=$2', [player.image, playerId]);
             io.emit('player-updated', { playerId, image: player.image });
         }
     });
@@ -251,12 +202,7 @@ io.on('connection', (socket) => {
             if (players[i]) {
                 players[i].health = players[i].maxHealth;
                 players[i].mana = players[i].maxMana;
-                await new Promise((resolve, reject) => {
-                    db.run('UPDATE players SET health=?, mana=? WHERE id=?', [players[i].health, players[i].mana, i], (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
-                });
+                await db.query('UPDATE players SET health=$1, mana=$2 WHERE id=$3', [players[i].health, players[i].mana, i]);
             }
         }
         io.emit('initial-state', players);
@@ -281,16 +227,10 @@ io.on('connection', (socket) => {
             };
             // persist to DB (guarded)
             try {
-                await new Promise((resolve, reject) => {
-                    db.run(
-                        'UPDATE players SET name=?, health=?, maxhealth=?, mana=?, maxmana=?, image=? WHERE id=?',
-                        [defaultName, 100, 100, 100, 100, defaultImage, playerId],
-                        (err) => {
-                            if (err) reject(err);
-                            else resolve();
-                        }
-                    );
-                });
+                await db.query(
+                    'UPDATE players SET name=$1, health=$2, maxhealth=$3, mana=$4, maxmana=$5, image=$6 WHERE id=$7',
+                    [defaultName, 100, 100, 100, 100, defaultImage, playerId]
+                );
             } catch (e) {
                 console.error('Falha ao persistir reset-player no DB para id', playerId, e.message || e);
             }
@@ -365,12 +305,7 @@ app.post('/api/upload-media', upload.single('media'), async (req, res) => {
         if (playerId && players[playerId]) {
             players[playerId].image = publicUrl;
             try {
-                await new Promise((resolve, reject) => {
-                    db.run('UPDATE players SET image=? WHERE id=?', [publicUrl, playerId], (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
-                });
+                await db.query('UPDATE players SET image=$1 WHERE id=$2', [publicUrl, playerId]);
             } catch (e) {
                 console.error('Falha ao persistir imagem no DB para id', playerId, e.message || e);
             }
@@ -406,12 +341,7 @@ app.post('/api/player/:id/mana', express.json(), async (req, res) => {
     const { amount } = req.body;
     if (players[playerId] && typeof amount === 'number') {
         players[playerId].mana = Math.max(0, (Number(players[playerId].mana) || 0) + Number(amount));
-        await new Promise((resolve, reject) => {
-            db.run('UPDATE players SET mana=? WHERE id=?', [players[playerId].mana, playerId], (err) => {
-                if (err) reject(err);
-                else resolve();
-            });
-        });
+        await db.query('UPDATE players SET mana=$1 WHERE id=$2', [players[playerId].mana, playerId]);
         io.emit('player-updated', { playerId, mana: players[playerId].mana });
         res.json({ success: true, mana: players[playerId].mana });
     } else {
