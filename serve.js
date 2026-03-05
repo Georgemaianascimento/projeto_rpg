@@ -93,7 +93,13 @@ let db;
 try {
     db = new Client({
         connectionString,
-        ssl: true
+        // Render usa TLS com certificado autoassinado; sem ignorar a validação
+        // o driver lança DEPTH_ZERO_SELF_SIGNED_CERT. Ajustamos o ssl para
+        // não rejeitar certificados autoassinados. Em produção com um CA
+        // válido você pode remover este objeto.
+        ssl: {
+            rejectUnauthorized: false
+        }
     });
 } catch (err) {
     console.error('ERRO: falha ao criar cliente PostgreSQL:', err.message);
