@@ -50,8 +50,12 @@ const upload = multer({ storage, limits: { fileSize: 600 * 1024 * 1024 } });
 let players = {};
 
 // Conectar ao banco PostgreSQL
+// conexão com PostgreSQL: prioriza a variável de ambiente DATABASE_URL.
+// entre em contato com o serviço (Render, Heroku, etc.) para obter a URL e
+// defina-a no ambiente da aplicação. O valor abaixo é apenas um fallback local
+// e não deve ser usado em produção.
 const db = new Client({
-    connectionString: process.env.DATABASE_URL || 'postgresql://db_rpg_user:33eKFlIk437tqCeMiCw304KCYVM1jvOL@dpg-d610j1shg0os73fatcrg-a.virginia-postgres.render.com/db_rpg',
+    connectionString: process.env.DATABASE_URL || 'postgresql://<usuario>:<senha>@<host>:5432/<dbname>',
     ssl: true
 });
 

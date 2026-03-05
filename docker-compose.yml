@@ -6,5 +6,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3333
-      - DATABASE_URL=postgresql://db_rpg_user:33eKFlIk437tqCeMiCw304KCYVM1jvOL@dpg-d610j1shg0os73fatcrg-a.virginia-postgres.render.com/db_rpg
+      # DATABASE_URL deve apontar para o banco que você criou no Render (veja as prints).
+      # Exemplo com as credenciais mostradas nas capturas de tela:
+      # postgresql://db_ads_7vfd_user:UyA77ZoIISST4qkrgjpBZwiwj5PSPdUi@dpg-d6kpcvfgi27c73bicj6g-a.virginia-postgres.render.com/db_ads_7vfd
+      # Para manter segura a senha, configure isso fora do controle de versão, por exemplo
+      # via variável de ambiente no seu host ou em um arquivo `.env` ignorado.
+      - DATABASE_URL=${DATABASE_URL}
     restart: unless-stopped
