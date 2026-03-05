@@ -50,14 +50,55 @@ const upload = multer({ storage, limits: { fileSize: 600 * 1024 * 1024 } });
 let players = {};
 
 // Conectar ao banco PostgreSQL
-// conexão com PostgreSQL: prioriza a variável de ambiente DATABASE_URL.
-// entre em contato com o serviço (Render, Heroku, etc.) para obter a URL e
-// defina-a no ambiente da aplicação. O valor abaixo é apenas um fallback local
-// e não deve ser usado em produção.
-const db = new Client({
-    connectionString: process.env.DATABASE_URL || 'postgresql://<usuario>:<senha>@<host>:5432/<dbname>',
-    ssl: true
-});
+// conexão com PostgreSQL: tentar DATABASE_URL primeiro, depois montar a partir
+// de variáveis individuais caso você prefira esse fluxo (pode ser útil durante
+// deploys manuais). Render não popula nada automaticamente, então você tem que
+// copiar a URL inteira ou fornecer cada pedaço como variável.
+// URLs fornecidas nas capturas de tela. você pode deixar aqui
+// os valores internos/externos caso queira evitar variáveis de ambiente.
+// OBS: isso grava a senha no código e não é recomendado para produção.
+const HARDCODED_EXTERNAL =
+    'postgresql://db_ads_7vfd_user:UyA77ZoIlSST4qkrgjpBZwiwj5PSPdUi@dpg-d6kpcvfgi27c73bicj6g-a.virginia-postgres.render.com/db_ads_7vfd';
+const HARDCODED_INTERNAL =
+    'postgresql://db_ads_7vfd_user:UyA77ZoIlSST4qkrgjpBZwiwj5PSPdUi@dpg-d6kpcvfgi27c73bicj6g-a/db_ads_7vfd';
+
+function buildConnectionString() {
+    // 1. prefira variável DATABASE_URL se definida
+    if (process.env.DATABASE_URL) {
+        return process.env.DATABASE_URL;
+    }
+    // 2. montar a partir de partes separadas (opcional)
+    const { DB_HOST, DB_PORT = '5432', DB_USER, DB_PASSWORD, DB_NAME } = process.env;
+    if (DB_HOST && DB_USER && DB_PASSWORD && DB_NAME) {
+        return `postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`;
+    }
+    // 3. uso direto dos valores que você passou nas prints.
+    // tenta interno primeiro (caso o serviço e o banco estejam na mesma rede)
+    if (HARDCODED_INTERNAL) {
+        return HARDCODED_INTERNAL;
+    }
+    return HARDCODED_EXTERNAL;
+}
+
+const connectionString = buildConnectionString();
+if (!connectionString) {
+    console.error('ERRO: nenhuma URL de conexão válida foi fornecida.');
+    console.error('Defina DATABASE_URL ou exporte as variáveis: ' +
+        'DB_HOST, DB_USER, DB_PASSWORD, DB_NAME (opcionalmente DB_PORT).');
+    console.error('Use as informações exibidas no painel do Render para preencher.');
+    process.exit(1);
+}
+
+let db;
+try {
+    db = new Client({
+        connectionString,
+        ssl: true
+    });
+} catch (err) {
+    console.error('ERRO: falha ao criar cliente PostgreSQL:', err.message);
+    process.exit(1);
+}
 
 async function initDbAndLoadPlayers() {
     await db.connect();
